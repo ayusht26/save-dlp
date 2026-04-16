@@ -43,10 +43,22 @@ def cleanup_old_files():
 threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 # Helper function to dynamically add cookie bypass if the file exists
+# Helper function to dynamically add network bypasses
 def get_bypass_args():
-    args = ["--user-agent", "Mozilla/5.0", "--force-ipv4", "--legacy-server-connect"]
+    args = [
+        # Standard bypasses
+        "--force-ipv4", 
+        "--legacy-server-connect",
+        "--geo-bypass",
+        
+        # ✅ THE MAGIC BYPASS: Tell YouTube we are an Android phone, iOS device, or TV.
+        # This completely changes the API endpoint yt-dlp talks to, bypassing most web bot-blocks.
+        "--extractor-args", "youtube:player_client=android,ios,tv,web"
+    ]
+    
     if os.path.exists("cookies.txt"):
         args.extend(["--cookies", "cookies.txt"])
+        
     return args
 
 
