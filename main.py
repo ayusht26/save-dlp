@@ -20,12 +20,13 @@ app.add_middleware(
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-progress_store = {}   # { video_id: float 0-100 or -1 on error }
-file_store = {}       # { video_id: (filepath, filename) }
+progress_store = {}
+file_store = {}
 
 
 def sanitize_filename(name: str):
     return re.sub(r'[\\/*?:"<>|]', "-", name)
+
 
 class TempFileResponse(FileResponse):
     def __init__(self, path: str, filename: str):
@@ -46,7 +47,7 @@ def get_formats(url: str):
     try:
         cmd = [
             "yt-dlp",
-            "-J",   # better than -j
+            "-J",
             "--no-warnings",
             "--user-agent", "Mozilla/5.0",
             url
@@ -68,7 +69,12 @@ def get_formats(url: str):
             return {"formats": []}
 
         formats_map = {}
+
         for f in data.get("formats", []):
+            # ✅ FIX: avoid NoneType crash
+            if not isinstance(f, dict):
+                continue
+
             h = f.get("height")
             if not h or h < 480 or h > 2160:
                 continue
@@ -96,7 +102,12 @@ def get_formats(url: str):
 @app.get("/thumbnail")
 def get_thumbnail(url: str):
     try:
-        cmd = ["yt-dlp", "--print", "thumbnail", url]
+        cmd = [
+            "yt-dlp",
+            "--user-agent", "Mozilla/5.0",
+            "--print", "thumbnail",
+            url
+        ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         return {"thumbnail": result.stdout.strip()}
     except:
@@ -111,31 +122,44 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
 
     def run():
         try:
-            # Resolve display title
-            title_cmd = ["yt-dlp", "--print", "title", url]
+            title_cmd = [
+                "yt-dlp",
+                "--user-agent", "Mozilla/5.0",
+                "--print", "title",
+                url
+            ]
             t_result = subprocess.run(title_cmd, capture_output=True, text=True)
             title = sanitize_filename(t_result.stdout.strip() or "video")
 
             if format == "mp3":
                 cmd = [
-                    "yt-dlp", "--newline",
+                    "yt-dlp",
+                    "--user-agent", "Mozilla/5.0",
+                    "--newline",
                     "-x", "--audio-format", "mp3",
-                    "-o", output_template, url
+                    "-o", output_template,
+                    url
                 ]
                 ext = "mp3"
             else:
                 fmt = "bestvideo+bestaudio" if quality == "best" else f"bestvideo[height<={quality}]+bestaudio"
                 cmd = [
-                    "yt-dlp", "--newline",
+                    "yt-dlp",
+                    "--user-agent", "Mozilla/5.0",
+                    "--newline",
                     "-f", fmt,
                     "--merge-output-format", format,
-                    "-o", output_template, url
+                    "-o", output_template,
+                    url
                 ]
-                if format == "mkv":
-                    cmd += ["--write-subs", "--sub-langs", "en", "--embed-subs", "--ignore-errors"]
                 ext = format
 
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
 
             for line in process.stdout:
                 if "%" in line:
@@ -144,19 +168,21 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
                         progress_store[video_id] = min(percent, 99.0)
                     except:
                         pass
+
             process.wait()
 
-            # Locate the output file to send back
-            file_path = next(
-                (os.path.join(DOWNLOAD_DIR, f) for f in os.listdir(DOWNLOAD_DIR) 
-                 if f.startswith(video_id) and f.endswith(ext)),
-                None
-            )
+            # ✅ FIX: robust file detection (Railway-safe)
+            file_path = None
+            for f in os.listdir(DOWNLOAD_DIR):
+                if f.startswith(video_id) and not f.endswith(".part"):
+                    file_path = os.path.join(DOWNLOAD_DIR, f)
+                    break
 
             if file_path and os.path.exists(file_path):
                 file_store[video_id] = (file_path, f"{title}.{ext}")
                 progress_store[video_id] = 100
             else:
+                print("FILE NOT FOUND AFTER DOWNLOAD")
                 progress_store[video_id] = -1
 
         except Exception as e:
@@ -175,6 +201,7 @@ def get_progress(id: str):
 @app.get("/file")
 def get_file(id: str):
     entry = file_store.get(id)
+
     if not entry:
         p = progress_store.get(id, 0)
         if p == -1:
@@ -186,7 +213,6 @@ def get_file(id: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File missing on disk")
 
-    # Clean up stores after serving
     del file_store[id]
     del progress_store[id]
 
