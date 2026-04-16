@@ -24,14 +24,10 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 progress_store = {}
 file_store = {}
 
-
 def sanitize_filename(name: str):
     return re.sub(r'[\\/*?:"<>|]', "-", name)
 
-
 # ✅ FIX 1: Background Cleanup Task
-# Instead of deleting instantly (which breaks browser downloads), 
-# this thread deletes files older than 1 hour.
 def cleanup_old_files():
     while True:
         try:
@@ -46,19 +42,18 @@ def cleanup_old_files():
 
 threading.Thread(target=cleanup_old_files, daemon=True).start()
 
+# Helper function to dynamically add cookie bypass if the file exists
+def get_bypass_args():
+    args = ["--user-agent", "Mozilla/5.0", "--force-ipv4", "--legacy-server-connect"]
+    if os.path.exists("cookies.txt"):
+        args.extend(["--cookies", "cookies.txt"])
+    return args
+
 
 @app.get("/formats")
 def get_formats(url: str):
     try:
-        cmd = [
-            "yt-dlp",
-            "-J",
-            "--no-warnings",
-            "--user-agent", "Mozilla/5.0",
-            "--force-ipv4",             # Network bypass argument
-            "--legacy-server-connect",  # Network bypass argument
-            url
-        ]
+        cmd = ["yt-dlp", "-J", "--no-warnings"] + get_bypass_args() + [url]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -112,14 +107,7 @@ def get_formats(url: str):
 @app.get("/thumbnail")
 def get_thumbnail(url: str):
     try:
-        cmd = [
-            "yt-dlp",
-            "--user-agent", "Mozilla/5.0",
-            "--force-ipv4",
-            "--legacy-server-connect",
-            "--print", "thumbnail",
-            url
-        ]
+        cmd = ["yt-dlp", "--print", "thumbnail"] + get_bypass_args() + [url]
         result = subprocess.run(cmd, capture_output=True, text=True)
         return {"thumbnail": result.stdout.strip()}
     except:
@@ -134,43 +122,27 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
 
     def run():
         try:
-            title_cmd = [
-                "yt-dlp",
-                "--user-agent", "Mozilla/5.0",
-                "--force-ipv4",
-                "--legacy-server-connect",
-                "--print", "title",
-                url
-            ]
+            title_cmd = ["yt-dlp", "--print", "title"] + get_bypass_args() + [url]
             t_result = subprocess.run(title_cmd, capture_output=True, text=True)
             title = sanitize_filename(t_result.stdout.strip() or "video")
 
             if format == "mp3":
                 cmd = [
                     "yt-dlp",
-                    "--user-agent", "Mozilla/5.0",
-                    "--force-ipv4",
-                    "--legacy-server-connect",
                     "--newline",
                     "-x", "--audio-format", "mp3",
-                    "-o", output_template,
-                    url
-                ]
+                    "-o", output_template
+                ] + get_bypass_args() + [url]
                 ext = "mp3"
             else:
-                # ✅ FIX 2: Added "/best" fallback so it doesn't fail on complex videos
                 fmt = "bestvideo+bestaudio/best" if quality == "best" else f"bestvideo[height<={quality}]+bestaudio/bestvideo[height<={quality}]/best"
                 cmd = [
                     "yt-dlp",
-                    "--user-agent", "Mozilla/5.0",
-                    "--force-ipv4",
-                    "--legacy-server-connect",
                     "--newline",
                     "-f", fmt,
                     "--merge-output-format", format,
-                    "-o", output_template,
-                    url
-                ]
+                    "-o", output_template
+                ] + get_bypass_args() + [url]
                 ext = format
 
             process = subprocess.Popen(
@@ -190,16 +162,13 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
 
             process.wait()
 
-            # ✅ FIX: robust file detection
             file_path = None
             
-            # Look specifically for the completed file
             for f in os.listdir(DOWNLOAD_DIR):
                 if f.startswith(video_id) and f.endswith(f".{ext}"):
                     file_path = os.path.join(DOWNLOAD_DIR, f)
                     break
             
-            # Fallback if yt-dlp chose a different extension (due to /best fallback)
             if not file_path:
                 for f in os.listdir(DOWNLOAD_DIR):
                     if f.startswith(video_id) and not f.endswith(".part") and not f.endswith(".ytdl"):
@@ -242,8 +211,4 @@ def get_file(id: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File missing on disk")
 
-    # We keep the file in file_store a little longer in case of browser retries
-    # The background thread will clean the file up from the hard drive later.
-    
-    # ✅ FIX 3: Serve the file natively
     return FileResponse(file_path, filename=filename)

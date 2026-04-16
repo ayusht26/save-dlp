@@ -221,8 +221,6 @@ function injectButton() {
   container.appendChild(btn);
 }
 
-console.log("API_BASE:", API_BASE);
-
 // ─── Open modal ───────────────────────────────────────────────────────────────
 async function openModal() {
   if (modalOpen) return;
@@ -353,8 +351,17 @@ async function openModal() {
       fetch(`${API_BASE}/formats?url=${encodeURIComponent(currentUrl)}`),
       fetch(`${API_BASE}/thumbnail?url=${encodeURIComponent(currentUrl)}`),
     ]);
-    if (fRes.ok) formats = (await fRes.json()).formats || formats;
-    if (tRes.ok) thumbnail = (await tRes.json()).thumbnail;
+
+    if (fRes.ok) {
+      const fData = await fRes.json();
+      if (fData.formats && fData.formats.length > 0) {
+        formats = fData.formats;
+      }
+    }
+    if (tRes.ok) {
+      const tData = await tRes.json();
+      if (tData.thumbnail) thumbnail = tData.thumbnail;
+    }
   } catch (e) {
     console.warn("Save-DLP: server unreachable", e);
   }
@@ -428,7 +435,6 @@ async function startDownload(shadow, host) {
   btn.disabled = true;
   btnText.textContent = "Starting…";
 
-  // Grab the expected total filesize to calculate MB/s accurately
   let totalBytes = null;
   const cachedUrl = urlCache[window.location.href];
   if (cachedUrl && cachedUrl.formats) {
@@ -474,17 +480,14 @@ function attachProgressPolling(id, shadow, host) {
 
   btn.disabled = true;
 
-  // Tracking variables for speed + ETA
   let lastProgress = activeDownload ? activeDownload.progress || 0 : 0;
   let lastTime = Date.now();
-  let smoothedSpeed = 0; // % per second
+  let smoothedSpeed = 0;
 
   function formatETA(seconds) {
     if (!seconds || seconds === Infinity || seconds < 0) return "--";
-
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-
     if (mins > 0) return `${mins}m ${secs}s`;
     return `${secs}s`;
   }
@@ -511,17 +514,15 @@ function attachProgressPolling(id, shadow, host) {
       const p = Math.min(progress, 100);
       progressFill.style.width = `${p}%`;
 
-      // ─── SPEED + ETA CALCULATION ───
       const now = Date.now();
       const deltaTime = (now - lastTime) / 1000;
       const deltaProgress = p - lastProgress;
 
       let speed = 0;
       if (deltaTime > 0 && deltaProgress > 0) {
-        speed = deltaProgress / deltaTime; // % per sec
+        speed = deltaProgress / deltaTime;
       }
 
-      // Smooth speed (important for premium feel)
       smoothedSpeed = smoothedSpeed * 0.7 + speed * 0.3;
 
       let eta = 0;
@@ -532,12 +533,10 @@ function attachProgressPolling(id, shadow, host) {
       lastProgress = p;
       lastTime = now;
 
-      // ─── UI TEXT ───
       if (p < 100 && p > 2) {
         const etaText = formatETA(eta);
         let speedText = "";
 
-        // Calculate actual MB/s if total bytes are known, otherwise fallback
         if (activeDownload && activeDownload.totalBytes) {
           const mbps =
             ((smoothedSpeed / 100) * activeDownload.totalBytes) / (1024 * 1024);
@@ -551,12 +550,10 @@ function attachProgressPolling(id, shadow, host) {
         btnText.textContent = `Downloading ${Math.floor(p)}%...`;
       }
 
-      // ─── COMPLETE ───
       if (p >= 100) {
         clearInterval(interval);
         btnText.textContent = "Saving file…";
 
-        // ✅ FIX 4: Invisible Anchor Tag Download (Prevents tab navigation issues)
         const a = document.createElement("a");
         a.href = `${API_BASE}/file?id=${id}`;
         a.download = "";
