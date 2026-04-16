@@ -1,21 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Save-DLP",
-  "version": "1.1",
-  "description": "A private video downloader for friends.",
+  "name": "save-dlp",
+  "version": "1.0",
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://save-dlp-production.up.railway.app/*"],
+  "host_permissions": ["http://127.0.0.1:8000/*"],
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
+      "matches": ["https://www.youtube.com/*"],
       "js": ["content.js"],
       "css": ["styles.css"]
     }
-  ],
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "savedlp@yourcustomname.com",
-      "strict_min_version": "109.0"
-    }
-  }
+  ]
 }

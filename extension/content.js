@@ -3,8 +3,6 @@ let selectedQuality = "best";
 let selectedFormat = "mp4";
 let isAudio = false;
 
-const API_BASE = "https://save-dlp-production.up.railway.app";
-
 // ─── Module-level cache ───────────────────────────────────────────────────────
 const urlCache = {}; // { [url]: { formats, thumbnail } }
 let activeDownload = null; // { id, progress, failed, intervalId, totalBytes }
@@ -348,20 +346,15 @@ async function openModal() {
 
   try {
     const [fRes, tRes] = await Promise.all([
-      fetch(`${API_BASE}/formats?url=${encodeURIComponent(currentUrl)}`),
-      fetch(`${API_BASE}/thumbnail?url=${encodeURIComponent(currentUrl)}`),
+      fetch(
+        `http://127.0.0.1:8000/formats?url=${encodeURIComponent(currentUrl)}`,
+      ),
+      fetch(
+        `http://127.0.0.1:8000/thumbnail?url=${encodeURIComponent(currentUrl)}`,
+      ),
     ]);
-
-    if (fRes.ok) {
-      const fData = await fRes.json();
-      if (fData.formats && fData.formats.length > 0) {
-        formats = fData.formats;
-      }
-    }
-    if (tRes.ok) {
-      const tData = await tRes.json();
-      if (tData.thumbnail) thumbnail = tData.thumbnail;
-    }
+    if (fRes.ok) formats = (await fRes.json()).formats || formats;
+    if (tRes.ok) thumbnail = (await tRes.json()).thumbnail;
   } catch (e) {
     console.warn("Save-DLP: server unreachable", e);
   }
@@ -435,6 +428,7 @@ async function startDownload(shadow, host) {
   btn.disabled = true;
   btnText.textContent = "Starting…";
 
+  // Grab the expected total filesize to calculate MB/s accurately
   let totalBytes = null;
   const cachedUrl = urlCache[window.location.href];
   if (cachedUrl && cachedUrl.formats) {
@@ -451,7 +445,7 @@ async function startDownload(shadow, host) {
 
   try {
     const res = await fetch(
-      `${API_BASE}/download?url=${encodeURIComponent(window.location.href)}&format=${format}&quality=${selectedQuality}`,
+      `http://127.0.0.1:8000/download?url=${encodeURIComponent(window.location.href)}&format=${format}&quality=${selectedQuality}`,
     );
     const { id } = await res.json();
     activeDownload = {
@@ -480,21 +474,24 @@ function attachProgressPolling(id, shadow, host) {
 
   btn.disabled = true;
 
+  // Tracking variables for speed + ETA
   let lastProgress = activeDownload ? activeDownload.progress || 0 : 0;
   let lastTime = Date.now();
-  let smoothedSpeed = 0;
+  let smoothedSpeed = 0; // % per second
 
   function formatETA(seconds) {
     if (!seconds || seconds === Infinity || seconds < 0) return "--";
+
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
+
     if (mins > 0) return `${mins}m ${secs}s`;
     return `${secs}s`;
   }
 
   const interval = setInterval(async () => {
     try {
-      const pRes = await fetch(`${API_BASE}/progress?id=${id}`);
+      const pRes = await fetch(`http://127.0.0.1:8000/progress?id=${id}`);
       const { progress } = await pRes.json();
 
       if (activeDownload && activeDownload.id === id) {
@@ -514,15 +511,17 @@ function attachProgressPolling(id, shadow, host) {
       const p = Math.min(progress, 100);
       progressFill.style.width = `${p}%`;
 
+      // ─── SPEED + ETA CALCULATION ───
       const now = Date.now();
       const deltaTime = (now - lastTime) / 1000;
       const deltaProgress = p - lastProgress;
 
       let speed = 0;
       if (deltaTime > 0 && deltaProgress > 0) {
-        speed = deltaProgress / deltaTime;
+        speed = deltaProgress / deltaTime; // % per sec
       }
 
+      // Smooth speed (important for premium feel)
       smoothedSpeed = smoothedSpeed * 0.7 + speed * 0.3;
 
       let eta = 0;
@@ -533,10 +532,12 @@ function attachProgressPolling(id, shadow, host) {
       lastProgress = p;
       lastTime = now;
 
+      // ─── UI TEXT ───
       if (p < 100 && p > 2) {
         const etaText = formatETA(eta);
         let speedText = "";
 
+        // Calculate actual MB/s if total bytes are known, otherwise fallback
         if (activeDownload && activeDownload.totalBytes) {
           const mbps =
             ((smoothedSpeed / 100) * activeDownload.totalBytes) / (1024 * 1024);
@@ -550,17 +551,11 @@ function attachProgressPolling(id, shadow, host) {
         btnText.textContent = `Downloading ${Math.floor(p)}%...`;
       }
 
+      // ─── COMPLETE ───
       if (p >= 100) {
         clearInterval(interval);
         btnText.textContent = "Saving file…";
-
-        const a = document.createElement("a");
-        a.href = `${API_BASE}/file?id=${id}`;
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
+        window.location.href = `http://127.0.0.1:8000/file?id=${id}`;
         activeDownload = null;
         setTimeout(() => closeModal(host), 1500);
       }
