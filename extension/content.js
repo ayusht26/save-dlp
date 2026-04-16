@@ -221,7 +221,6 @@ function injectButton() {
   container.appendChild(btn);
 }
 
-
 console.log("API_BASE:", API_BASE);
 
 // ─── Open modal ───────────────────────────────────────────────────────────────
@@ -556,7 +555,15 @@ function attachProgressPolling(id, shadow, host) {
       if (p >= 100) {
         clearInterval(interval);
         btnText.textContent = "Saving file…";
-        window.location.href = `${API_BASE}/file?id=${id}`;
+
+        // ✅ FIX 4: Invisible Anchor Tag Download (Prevents tab navigation issues)
+        const a = document.createElement("a");
+        a.href = `${API_BASE}/file?id=${id}`;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
         activeDownload = null;
         setTimeout(() => closeModal(host), 1500);
       }
