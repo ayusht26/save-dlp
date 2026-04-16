@@ -44,9 +44,28 @@ class TempFileResponse(FileResponse):
 @app.get("/formats")
 def get_formats(url: str):
     try:
-        cmd = ["yt-dlp", "-j", "--no-warnings", url]
+        cmd = [
+            "yt-dlp",
+            "-J",   # better than -j
+            "--no-warnings",
+            "--user-agent", "Mozilla/5.0",
+            url
+        ]
+
         result = subprocess.run(cmd, capture_output=True, text=True)
-        data = json.loads(result.stdout.strip().split("\n")[-1])
+
+        if not result.stdout.strip():
+            print("YT-DLP EMPTY OUTPUT")
+            print("STDERR:", result.stderr)
+            return {"formats": []}
+
+        try:
+            data = json.loads(result.stdout)
+        except Exception as e:
+            print("JSON ERROR:", e)
+            print("RAW OUTPUT:", result.stdout[:500])
+            print("STDERR:", result.stderr)
+            return {"formats": []}
 
         formats_map = {}
         for f in data.get("formats", []):
@@ -61,7 +80,13 @@ def get_formats(url: str):
                     "filesize": f.get("filesize") or f.get("filesize_approx")
                 }
 
-        return {"formats": sorted(formats_map.values(), key=lambda x: x["height"], reverse=True)}
+        return {
+            "formats": sorted(
+                formats_map.values(),
+                key=lambda x: x["height"],
+                reverse=True
+            )
+        }
 
     except Exception as e:
         print("FORMAT ERROR:", e)

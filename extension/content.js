@@ -3,6 +3,8 @@ let selectedQuality = "best";
 let selectedFormat = "mp4";
 let isAudio = false;
 
+const API_BASE = "https://save-dlp-production.up.railway.app";
+
 // ─── Module-level cache ───────────────────────────────────────────────────────
 const urlCache = {}; // { [url]: { formats, thumbnail } }
 let activeDownload = null; // { id, progress, failed, intervalId, totalBytes }
@@ -219,6 +221,9 @@ function injectButton() {
   container.appendChild(btn);
 }
 
+
+console.log("API_BASE:", API_BASE);
+
 // ─── Open modal ───────────────────────────────────────────────────────────────
 async function openModal() {
   if (modalOpen) return;
@@ -346,12 +351,8 @@ async function openModal() {
 
   try {
     const [fRes, tRes] = await Promise.all([
-      fetch(
-        `http://127.0.0.1:8000/formats?url=${encodeURIComponent(currentUrl)}`,
-      ),
-      fetch(
-        `http://127.0.0.1:8000/thumbnail?url=${encodeURIComponent(currentUrl)}`,
-      ),
+      fetch(`${API_BASE}/formats?url=${encodeURIComponent(currentUrl)}`),
+      fetch(`${API_BASE}/thumbnail?url=${encodeURIComponent(currentUrl)}`),
     ]);
     if (fRes.ok) formats = (await fRes.json()).formats || formats;
     if (tRes.ok) thumbnail = (await tRes.json()).thumbnail;
@@ -445,7 +446,7 @@ async function startDownload(shadow, host) {
 
   try {
     const res = await fetch(
-      `http://127.0.0.1:8000/download?url=${encodeURIComponent(window.location.href)}&format=${format}&quality=${selectedQuality}`,
+      `${API_BASE}/download?url=${encodeURIComponent(window.location.href)}&format=${format}&quality=${selectedQuality}`,
     );
     const { id } = await res.json();
     activeDownload = {
@@ -491,7 +492,7 @@ function attachProgressPolling(id, shadow, host) {
 
   const interval = setInterval(async () => {
     try {
-      const pRes = await fetch(`http://127.0.0.1:8000/progress?id=${id}`);
+      const pRes = await fetch(`${API_BASE}/progress?id=${id}`);
       const { progress } = await pRes.json();
 
       if (activeDownload && activeDownload.id === id) {
@@ -555,7 +556,7 @@ function attachProgressPolling(id, shadow, host) {
       if (p >= 100) {
         clearInterval(interval);
         btnText.textContent = "Saving file…";
-        window.location.href = `http://127.0.0.1:8000/file?id=${id}`;
+        window.location.href = `${API_BASE}/file?id=${id}`;
         activeDownload = null;
         setTimeout(() => closeModal(host), 1500);
       }
