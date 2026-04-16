@@ -50,6 +50,8 @@ def get_formats(url: str):
             "-J",
             "--no-warnings",
             "--user-agent", "Mozilla/5.0",
+            "--force-ipv4",             # Network bypass argument
+            "--legacy-server-connect",  # Network bypass argument
             url
         ]
 
@@ -68,10 +70,14 @@ def get_formats(url: str):
             print("STDERR:", result.stderr)
             return {"formats": []}
 
+        # ✅ FIX: Safety check to prevent the 'NoneType' crash if YouTube blocks the IP
+        if not data or not isinstance(data, dict):
+            print("YT-DLP returned invalid data (Likely an IP block/Bot detection)")
+            return {"formats": []}
+
         formats_map = {}
 
         for f in data.get("formats", []):
-            # ✅ FIX: avoid NoneType crash
             if not isinstance(f, dict):
                 continue
 
@@ -105,6 +111,8 @@ def get_thumbnail(url: str):
         cmd = [
             "yt-dlp",
             "--user-agent", "Mozilla/5.0",
+            "--force-ipv4",
+            "--legacy-server-connect",
             "--print", "thumbnail",
             url
         ]
@@ -125,6 +133,8 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
             title_cmd = [
                 "yt-dlp",
                 "--user-agent", "Mozilla/5.0",
+                "--force-ipv4",
+                "--legacy-server-connect",
                 "--print", "title",
                 url
             ]
@@ -135,6 +145,8 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
                 cmd = [
                     "yt-dlp",
                     "--user-agent", "Mozilla/5.0",
+                    "--force-ipv4",
+                    "--legacy-server-connect",
                     "--newline",
                     "-x", "--audio-format", "mp3",
                     "-o", output_template,
@@ -146,6 +158,8 @@ def download_video(url: str, format: str = "mp4", quality: str = "best"):
                 cmd = [
                     "yt-dlp",
                     "--user-agent", "Mozilla/5.0",
+                    "--force-ipv4",
+                    "--legacy-server-connect",
                     "--newline",
                     "-f", fmt,
                     "--merge-output-format", format,
