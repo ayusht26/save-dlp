@@ -4,3 +4,4 @@ downloads/
 .env
 node_modules/
 .DS_Store
+extension/save-dlp.zip
