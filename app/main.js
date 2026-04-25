@@ -103,25 +103,46 @@ function startBackend() {
   );
 }
 
-// Ensure single instance to handle deep links correctly on Windows
+// ─── Protocol handler: must be registered BEFORE app is ready ────────────────
+// This is what enables savedlp:// links to open/focus the app
+app.setAsDefaultProtocolClient("savedlp");
+
+// ─── Single instance lock (required for deep links on Windows) ───────────────
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
+  // Another instance is already running — quit this one.
+  // The running instance will receive 'second-instance' with our args.
   app.quit();
 } else {
-  app.on("second-instance", (event, commandLine, workingDirectory) => {
+  // ─── Second instance = deep link on Windows ─────────────────────────────
+  app.on("second-instance", (event, commandLine) => {
+    // Bring the existing window to front
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
     }
+    // On Windows, the deep link URI arrives as a command-line argument
     const deepLink = commandLine.find((arg) => arg.startsWith("savedlp://"));
-    if (deepLink && mainWindow)
+    if (deepLink && mainWindow) {
       mainWindow.webContents.send("download-url", deepLink);
+    }
+  });
+
+  // ─── macOS: deep link arrives via open-url event ─────────────────────────
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send("download-url", url);
+    }
   });
 
   async function createWindow() {
     startBackend();
+
     mainWindow = new BrowserWindow({
       width: 1100,
       height: 720,
@@ -140,6 +161,7 @@ if (!gotTheLock) {
       show: false,
     });
 
+    // Block Ctrl+R / F5 reload in production
     mainWindow.webContents.on("before-input-event", (event, input) => {
       if ((input.control || input.meta) && input.key.toLowerCase() === "r")
         event.preventDefault();
@@ -148,24 +170,34 @@ if (!gotTheLock) {
 
     mainWindow.once("ready-to-show", () => {
       mainWindow.show();
+
+      // On Windows: check if THIS launch was triggered by a deep link
+      // (first-ever launch with protocol URI — second-instance won't fire)
       if (process.platform === "win32") {
         const deepLink = process.argv.find((arg) =>
           arg.startsWith("savedlp://"),
         );
-        if (deepLink) mainWindow.webContents.send("download-url", deepLink);
+        if (deepLink) {
+          // Small delay to ensure renderer is listening for the event
+          setTimeout(() => {
+            mainWindow.webContents.send("download-url", deepLink);
+          }, 500);
+        }
       }
     });
 
     if (isDev) {
       mainWindow.loadURL("http://localhost:5173");
-      mainWindow.webContents.openDevTools();
+      // Uncomment to open devtools automatically in dev:
+      // mainWindow.webContents.openDevTools();
     } else {
       mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
     }
 
     waitForBackend().then((ok) => {
-      if (mainWindow)
+      if (mainWindow) {
         mainWindow.webContents.send("backend-status", ok ? "ready" : "failed");
+      }
     });
   }
 
@@ -174,6 +206,7 @@ if (!gotTheLock) {
     const icon = fs.existsSync(iconPath)
       ? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
       : nativeImage.createEmpty();
+
     tray = new Tray(icon);
     tray.setToolTip("SaveDLP");
     tray.setContextMenu(
@@ -186,6 +219,7 @@ if (!gotTheLock) {
     tray.on("double-click", () => mainWindow?.show());
   }
 
+  // ─── IPC handlers ────────────────────────────────────────────────────────
   ipcMain.handle("window-minimize", () => mainWindow?.minimize());
   ipcMain.handle("window-maximize", () => {
     if (mainWindow?.isMaximized()) mainWindow.unmaximize();
@@ -228,6 +262,7 @@ if (!gotTheLock) {
   );
   ipcMain.handle("open-external", (_, url) => shell.openExternal(url));
 
+  // ─── App lifecycle ────────────────────────────────────────────────────────
   app.whenReady().then(() => {
     createWindow();
     createTray();
@@ -235,19 +270,15 @@ if (!gotTheLock) {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
   });
+
   app.on("window-all-closed", () => {
-    if (process.platform === "darwin") app.quit();
-  });
-  app.on("before-quit", () => {
-    if (backendProcess) backendProcess.kill();
+    if (process.platform !== "darwin") {
+      // On non-mac, hide to tray instead of quitting
+      // (app.quit() is handled by the tray menu)
+    }
   });
 
-  app.setAsDefaultProtocolClient("savedlp");
-  app.on("open-url", (event, url) => {
-    event.preventDefault();
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.webContents.send("download-url", url);
-    }
+  app.on("before-quit", () => {
+    if (backendProcess) backendProcess.kill();
   });
 }
