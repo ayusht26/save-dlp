@@ -1,0 +1,111 @@
+.sidebar {
+  width: 200px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-glow {
+  position: absolute;
+  top: -80px;
+  left: -40px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(255,45,45,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-display);
+  transition: all 0.2s var(--easing);
+  text-align: left;
+  animation: fadeIn 0.4s var(--easing) both;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.nav-item.active {
+  background: var(--red-dim);
+  color: var(--text-primary);
+  border: 1px solid rgba(255,45,45,0.15);
+}
+
+.nav-item.active .nav-icon {
+  color: var(--red);
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.nav-indicator {
+  position: absolute;
+  right: -12px;
+  width: 3px;
+  height: 20px;
+  background: var(--red);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--red-glow);
+}
+
+.sidebar-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-version {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 12px;
+}
+
+/* Fix 1: Professional, classy toast number styling */
+.nav-badge { 
+  background: var(--red); 
+  color: white; 
+  font-size: 11px; 
+  font-weight: 700; 
+  font-family: var(--font-mono);
+  height: 20px;
+  min-width: 20px;
+  padding: 0 6px; 
+  border-radius: 10px; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto; 
+  margin-right: 4px; 
+  box-shadow: 0 2px 6px rgba(255,45,45,0.4);
+}

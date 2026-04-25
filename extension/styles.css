@@ -1,22 +1,39 @@
-/* Save-DLP — styles.css
+/* SaveDLP Chrome Extension — styles.css
    Only the injected Save button needs to be here.
-   All modal styles live inside the Shadow DOM in content.js
-   and are fully isolated from YouTube's CSS. */
+   All modal styles live securely inside the Shadow DOM in content.js
+   so they are fully isolated from YouTube's native CSS. */
 
-#save-dlp-btn {
+#savedlp-btn {
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 8px !important;
   height: 36px !important;
   padding: 0 16px !important;
-  background: #272727 !important;
-  color: white !important;
+  background: rgba(255, 255, 255, 0.1) !important; /* Matches YouTube's native dark mode buttons */
+  color: #f1f1f1 !important;
   border-radius: 18px !important;
   border: none !important;
   font-size: 14px !important;
+  font-weight: 500 !important;
+  font-family: "Roboto", "Arial", sans-serif !important;
   cursor: pointer !important;
+  transition: background-color 0.2s ease !important;
 }
 
+#savedlp-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important; /* Slightly lighter on hover */
+}
+
+#savedlp-btn:active {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
+#savedlp-btn svg {
+  margin-right: 2px !important;
+}
+
+/* Ensure there is proper spacing between YouTube's default buttons and our injected button */
 #top-level-buttons-computed {
-  gap: 12px !important;
+  gap: 8px !important;
 }

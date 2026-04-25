@@ -1,14 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "save-dlp",
-  "version": "1.0",
-  "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["http://127.0.0.1:8000/*"],
+  "name": "SaveDLP",
+  "version": "1.0.0",
+  "description": "Download YouTube videos via SaveDLP app",
+  "permissions": ["activeTab", "scripting", "clipboardRead"],
+  "host_permissions": ["http://127.0.0.1:8000/*", "https://www.youtube.com/*"],
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": ["https://www.youtube.com/watch*"],
       "js": ["content.js"],
-      "css": ["styles.css"]
+      "css": ["styles.css"],
+      "run_at": "document_idle"
     }
-  ]
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

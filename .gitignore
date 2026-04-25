@@ -1,7 +1,1 @@
-**pycache**/
-downloads/
-*.pyc
-.env
 node_modules/
-.DS_Store
-extension/save-dlp.zip
