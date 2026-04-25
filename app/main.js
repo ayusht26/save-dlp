@@ -37,7 +37,7 @@ function saveSettings(settings) {
 function getBackendPath() {
   return isDev
     ? path.join(__dirname, "..", "backend", "main.py")
-    : path.join(process.resourcesPath, "backend", "main.py");
+    : path.join(process.resourcesPath, "backend", "backend.exe");
 }
 
 function getPythonPath() {
@@ -81,56 +81,67 @@ async function waitForBackend(maxRetries = 30) {
 
 function startBackend() {
   const backendPath = getBackendPath();
-  const pythonPath = getPythonPath();
-  backendProcess = spawn(
-    pythonPath,
-    [
-      "-m",
-      "uvicorn",
-      "main:app",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(BACKEND_PORT),
-      "--log-level",
-      "warning",
-    ],
-    {
-      cwd: path.dirname(backendPath),
+  const cwdPath = path.dirname(backendPath);
+
+  if (isDev) {
+    const pythonPath = getPythonPath();
+    backendProcess = spawn(
+      pythonPath,
+      [
+        "-m",
+        "uvicorn",
+        "main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        String(BACKEND_PORT),
+        "--log-level",
+        "warning",
+      ],
+      {
+        cwd: cwdPath,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
+  } else {
+    // PRODUCTION: Execute backend.exe directly
+    backendProcess = spawn(backendPath, [], {
+      cwd: cwdPath,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-    },
-  );
+    });
+  }
 }
 
-// ─── Protocol handler: must be registered BEFORE app is ready ────────────────
-// This is what enables savedlp:// links to open/focus the app
-app.setAsDefaultProtocolClient("savedlp");
+// ─── Protocol handler ───────────────────────────────────────────────
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("savedlp", process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient("savedlp");
+}
 
-// ─── Single instance lock (required for deep links on Windows) ───────────────
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // Another instance is already running — quit this one.
-  // The running instance will receive 'second-instance' with our args.
   app.quit();
 } else {
-  // ─── Second instance = deep link on Windows ─────────────────────────────
   app.on("second-instance", (event, commandLine) => {
-    // Bring the existing window to front
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
     }
-    // On Windows, the deep link URI arrives as a command-line argument
     const deepLink = commandLine.find((arg) => arg.startsWith("savedlp://"));
     if (deepLink && mainWindow) {
       mainWindow.webContents.send("download-url", deepLink);
     }
   });
 
-  // ─── macOS: deep link arrives via open-url event ─────────────────────────
   app.on("open-url", (event, url) => {
     event.preventDefault();
     if (mainWindow) {
@@ -161,7 +172,6 @@ if (!gotTheLock) {
       show: false,
     });
 
-    // Block Ctrl+R / F5 reload in production
     mainWindow.webContents.on("before-input-event", (event, input) => {
       if ((input.control || input.meta) && input.key.toLowerCase() === "r")
         event.preventDefault();
@@ -170,15 +180,11 @@ if (!gotTheLock) {
 
     mainWindow.once("ready-to-show", () => {
       mainWindow.show();
-
-      // On Windows: check if THIS launch was triggered by a deep link
-      // (first-ever launch with protocol URI — second-instance won't fire)
       if (process.platform === "win32") {
         const deepLink = process.argv.find((arg) =>
           arg.startsWith("savedlp://"),
         );
         if (deepLink) {
-          // Small delay to ensure renderer is listening for the event
           setTimeout(() => {
             mainWindow.webContents.send("download-url", deepLink);
           }, 500);
@@ -188,8 +194,6 @@ if (!gotTheLock) {
 
     if (isDev) {
       mainWindow.loadURL("http://localhost:5173");
-      // Uncomment to open devtools automatically in dev:
-      // mainWindow.webContents.openDevTools();
     } else {
       mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
     }
@@ -262,7 +266,6 @@ if (!gotTheLock) {
   );
   ipcMain.handle("open-external", (_, url) => shell.openExternal(url));
 
-  // ─── App lifecycle ────────────────────────────────────────────────────────
   app.whenReady().then(() => {
     createWindow();
     createTray();
@@ -273,8 +276,7 @@ if (!gotTheLock) {
 
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
-      // On non-mac, hide to tray instead of quitting
-      // (app.quit() is handled by the tray menu)
+      // Background process handling
     }
   });
 

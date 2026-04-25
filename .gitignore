@@ -4,3 +4,20 @@ downloads/
 .env
 node_modules/
 .DS_Store
+
+# Your requested folders
+backend/bin/
+backend/dist/
+
+# Virtual Environment
+backend/venv/
+
+# Build folder and PyInstaller spec file
+backend/build/
+backend/backend.spec
+
+# Python cache
+backend/__pycache__/
+
+# Downloaded files (if you don't want to track user-generated downloads in git)
+backend/downloads/

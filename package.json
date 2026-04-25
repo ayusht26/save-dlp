@@ -2,6 +2,7 @@
   "name": "savedlp",
   "version": "1.0.0",
   "description": "Premium YouTube downloader with browser extension",
+  "author": "Ayush Tiwari <https://github.com/ayusht26>",
   "main": "app/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
@@ -13,7 +14,7 @@
     "build:linux": "vite build && electron-builder --linux"
   },
   "build": {
-    "appId": "com.savedlp.app",
+    "appId": "com.ayusht26.savedlp",
     "productName": "SaveDLP",
     "directories": {
       "buildResources": "app/assets",
@@ -27,11 +28,16 @@
     ],
     "extraResources": [
       {
-        "from": "backend",
-        "to": "backend",
-        "filter": [
-          "**/*"
-        ]
+        "from": "backend/dist/backend.exe",
+        "to": "backend/backend.exe"
+      },
+      {
+        "from": "backend/bin",
+        "to": "backend/bin"
+      },
+      {
+        "from": "extension",
+        "to": "extension"
       }
     ],
     "win": {
@@ -77,8 +83,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "SaveDLP",
       "installerIcon": "app/assets/icon.ico",
-      "installerHeaderIcon": "app/assets/icon.ico",
-      "license": "LICENSE.txt"
+      "installerHeaderIcon": "app/assets/icon.ico"
     },
     "protocols": [
       {
