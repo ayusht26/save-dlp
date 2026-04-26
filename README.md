@@ -72,11 +72,9 @@ A sleek **Save** button injected into the YouTube player.
 
 Clicking it wakes the desktop app via custom `savedlp://` deep link.
 
-<div align="center">
-<img src="./assets/browser-chrome.png" width="48%" />
-<img src="./assets/browser-firefox.png" width="48%" />
-</div>
-
+| Save Button | Popup Window |
+|--------|---------|
+| <img src="./assets/browser-chrome.png" height="340"> | <img src="./assets/browser-firefox.png" height="340"> |
 ---
 
 ## 🎬 Powerful Download Engine
