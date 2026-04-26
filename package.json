@@ -21,6 +21,7 @@
   "build": {
     "appId": "com.ayusht26.savedlp",
     "productName": "SaveDLP",
+    "artifactName": "SaveDLP-Setup-${version}.${ext}",
     "publish": [
       {
         "provider": "github",
