@@ -1,6 +1,6 @@
 {
   "name": "savedlp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Premium YouTube downloader with browser extension",
   "author": "Ayush Tiwari <https://github.com/ayusht26>",
   "main": "app/main.js",
