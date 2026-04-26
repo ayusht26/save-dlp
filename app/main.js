@@ -12,6 +12,7 @@ const path = require("path");
 const { spawn, execSync } = require("child_process");
 const fs = require("fs");
 const http = require("http");
+const { autoUpdater } = require("electron-updater");
 
 let mainWindow;
 let tray;
@@ -22,6 +23,10 @@ const isDev = process.env.NODE_ENV === "development";
 const userDataPath = app.getPath("userData");
 const settingsPath = path.join(userDataPath, "settings.json");
 const historyPath = path.join(userDataPath, "history.json");
+
+// Configure Auto Updater
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 function getSettings() {
   try {
@@ -57,28 +62,6 @@ function getPythonPath() {
   return "python3";
 }
 
-async function waitForBackend(maxRetries = 30) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(`http://127.0.0.1:${BACKEND_PORT}/ping`, (res) => {
-          if (res.statusCode === 200) resolve();
-          else reject();
-        });
-        req.on("error", reject);
-        req.setTimeout(1000, () => {
-          req.destroy();
-          reject();
-        });
-      });
-      return true;
-    } catch {
-      await new Promise((r) => setTimeout(r, 500));
-    }
-  }
-  return false;
-}
-
 function startBackend() {
   const backendPath = getBackendPath();
   const cwdPath = path.dirname(backendPath);
@@ -98,14 +81,9 @@ function startBackend() {
         "--log-level",
         "warning",
       ],
-      {
-        cwd: cwdPath,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      },
+      { cwd: cwdPath, stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
     );
   } else {
-    // PRODUCTION: Execute backend.exe directly
     backendProcess = spawn(backendPath, [], {
       cwd: cwdPath,
       stdio: ["ignore", "pipe", "pipe"],
@@ -114,7 +92,6 @@ function startBackend() {
   }
 }
 
-// ─── Protocol handler ───────────────────────────────────────────────
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient("savedlp", process.execPath, [
@@ -173,9 +150,13 @@ if (!gotTheLock) {
     });
 
     mainWindow.webContents.on("before-input-event", (event, input) => {
-      if ((input.control || input.meta) && input.key.toLowerCase() === "r")
+      if (
+        (input.control || input.meta) &&
+        input.key.toLowerCase() === "r" &&
+        !isDev
+      )
         event.preventDefault();
-      if (input.key === "F5") event.preventDefault();
+      if (input.key === "F5" && !isDev) event.preventDefault();
     });
 
     mainWindow.once("ready-to-show", () => {
@@ -185,9 +166,10 @@ if (!gotTheLock) {
           arg.startsWith("savedlp://"),
         );
         if (deepLink) {
-          setTimeout(() => {
-            mainWindow.webContents.send("download-url", deepLink);
-          }, 500);
+          setTimeout(
+            () => mainWindow.webContents.send("download-url", deepLink),
+            500,
+          );
         }
       }
     });
@@ -197,12 +179,6 @@ if (!gotTheLock) {
     } else {
       mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
     }
-
-    waitForBackend().then((ok) => {
-      if (mainWindow) {
-        mainWindow.webContents.send("backend-status", ok ? "ready" : "failed");
-      }
-    });
   }
 
   function createTray() {
@@ -223,7 +199,6 @@ if (!gotTheLock) {
     tray.on("double-click", () => mainWindow?.show());
   }
 
-  // ─── IPC handlers ────────────────────────────────────────────────────────
   ipcMain.handle("window-minimize", () => mainWindow?.minimize());
   ipcMain.handle("window-maximize", () => {
     if (mainWindow?.isMaximized()) mainWindow.unmaximize();
@@ -243,9 +218,9 @@ if (!gotTheLock) {
     } catch (e) {}
     return [];
   });
-  ipcMain.handle("save-history", (_, downloads) => {
-    fs.writeFileSync(historyPath, JSON.stringify(downloads, null, 2));
-  });
+  ipcMain.handle("save-history", (_, downloads) =>
+    fs.writeFileSync(historyPath, JSON.stringify(downloads, null, 2)),
+  );
 
   ipcMain.handle("set-download-path", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -265,6 +240,34 @@ if (!gotTheLock) {
     shell.showItemInFolder(filePath),
   );
   ipcMain.handle("open-external", (_, url) => shell.openExternal(url));
+  ipcMain.handle("get-app-version", () => app.getVersion());
+
+  // OTA Updater IPC
+  ipcMain.handle("check-for-updates", async () => {
+    try {
+      return await autoUpdater.checkForUpdates();
+    } catch (e) {
+      mainWindow?.webContents.send("updater-error", e.message);
+    }
+  });
+  ipcMain.handle("download-update", () => autoUpdater.downloadUpdate());
+  ipcMain.handle("install-update", () => autoUpdater.quitAndInstall());
+
+  autoUpdater.on("update-available", (info) =>
+    mainWindow?.webContents.send("update-available", info),
+  );
+  autoUpdater.on("update-not-available", (info) =>
+    mainWindow?.webContents.send("update-not-available", info),
+  );
+  autoUpdater.on("download-progress", (progress) =>
+    mainWindow?.webContents.send("download-progress", progress),
+  );
+  autoUpdater.on("update-downloaded", (info) =>
+    mainWindow?.webContents.send("update-downloaded", info),
+  );
+  autoUpdater.on("error", (err) =>
+    mainWindow?.webContents.send("updater-error", err.message),
+  );
 
   app.whenReady().then(() => {
     createWindow();
@@ -276,10 +279,8 @@ if (!gotTheLock) {
 
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
-      // Background process handling
     }
   });
-
   app.on("before-quit", () => {
     if (backendProcess) backendProcess.kill();
   });

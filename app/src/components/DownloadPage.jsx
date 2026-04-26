@@ -59,6 +59,7 @@ export default function DownloadPage({
   setActiveDownloads,
   autoDownloadConfig,
   setAutoDownloadConfig,
+  triggerToast,
 }) {
   const [url, setUrl] = useState("");
   const [fetchState, setFetchState] = useState("idle");
@@ -99,7 +100,6 @@ export default function DownloadPage({
 
   const startDownload = useCallback(
     async (overrideCfg = null) => {
-      // Prevent React synthetic event objects from being treated as config
       const cfg = overrideCfg && overrideCfg.nativeEvent ? null : overrideCfg;
       if (!videoInfo) return;
 
@@ -152,6 +152,8 @@ export default function DownloadPage({
       setActiveDownloads((prev) => [downloadEntry, ...prev]);
       onDownloadAdded?.(downloadEntry);
 
+      triggerToast?.(videoInfo.title);
+
       try {
         const saveDir = window.electron ? settings.downloadPath : "";
         const res = await fetch(
@@ -175,6 +177,7 @@ export default function DownloadPage({
       api,
       settings.downloadPath,
       onDownloadAdded,
+      triggerToast,
     ],
   );
 
@@ -340,14 +343,17 @@ export default function DownloadPage({
                 />
               </svg>
             </div>
+
+            {/* Tailwind classes added here to strictly nuke the blue focus ring */}
             <input
-              className="url-input"
+              className="url-input focus:outline-none focus:ring-0 border-none outline-none bg-transparent w-full"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && fetchInfo()}
               placeholder="https://www.youtube.com/watch?v=..."
               spellCheck={false}
             />
+
             <div className="url-actions">
               {fetchState !== "idle" && (
                 <button

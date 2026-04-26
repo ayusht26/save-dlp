@@ -11,7 +11,19 @@ contextBridge.exposeInMainWorld("electron", {
   openFolder: (p) => ipcRenderer.invoke("open-folder", p),
   showItemInFolder: (p) => ipcRenderer.invoke("show-item-in-folder", p),
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
-  onBackendStatus: (cb) =>
-    ipcRenderer.on("backend-status", (_, status) => cb(status)),
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   onDownloadUrl: (cb) => ipcRenderer.on("download-url", (_, url) => cb(url)),
+
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("download-update"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  onUpdateAvailable: (cb) =>
+    ipcRenderer.on("update-available", (_, info) => cb(info)),
+  onUpdateNotAvailable: (cb) =>
+    ipcRenderer.on("update-not-available", (_, info) => cb(info)),
+  onDownloadProgress: (cb) =>
+    ipcRenderer.on("download-progress", (_, prog) => cb(prog)),
+  onUpdateDownloaded: (cb) =>
+    ipcRenderer.on("update-downloaded", (_, info) => cb(info)),
+  onUpdaterError: (cb) => ipcRenderer.on("updater-error", (_, err) => cb(err)),
 });

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
 const navItems = [
@@ -56,6 +56,14 @@ const navItems = [
 ];
 
 export default function Sidebar({ page, setPage, activeCount }) {
+  const [version, setVersion] = useState("1.0.0");
+
+  useEffect(() => {
+    if (window.electron) {
+      window.electron.getAppVersion().then(setVersion);
+    }
+  }, []);
+
   return (
     <aside className="sidebar">
       <div className="sidebar-glow" />
@@ -77,7 +85,7 @@ export default function Sidebar({ page, setPage, activeCount }) {
         ))}
       </nav>
       <div className="sidebar-footer">
-        <div className="sidebar-version">v1.0.0</div>
+        <div className="sidebar-version">v{version}</div>
       </div>
     </aside>
   );

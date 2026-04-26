@@ -1,25 +1,56 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import qrCode from "../../assets/qr.jpg";
+import { RefreshCw, Download, CheckCircle, AlertCircle } from "lucide-react";
 
 export default function SettingsPage({ settings, setSettings }) {
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState("idle");
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if (window.electron) {
+      window.electron.getAppVersion().then(setAppVersion);
+
+      window.electron.onUpdateAvailable(() => setUpdateStatus("available"));
+      window.electron.onUpdateNotAvailable(() => setUpdateStatus("idle"));
+      window.electron.onDownloadProgress((prog) => {
+        setUpdateStatus("downloading");
+        setUpdateProgress(prog.percent);
+      });
+      window.electron.onUpdateDownloaded(() => setUpdateStatus("ready"));
+      window.electron.onUpdaterError((err) => {
+        setUpdateStatus("error");
+        setErrorMsg(err);
+      });
+    }
+  }, []);
+
   const handleDirectoryChange = async () => {
     if (window.electron) {
       const newPath = await window.electron.setDownloadPath();
       if (newPath) {
         setSettings({ ...settings, downloadPath: newPath });
       }
+    } else {
+      alert("This feature only works when running the SaveDLP desktop app!");
     }
   };
 
   const handleOpenFolder = () => {
     if (window.electron && settings.downloadPath) {
       window.electron.openFolder(settings.downloadPath);
+    } else {
+      alert("This feature only works when running the SaveDLP desktop app!");
     }
   };
 
   const handleGithub = () => {
-    if (window.electron)
+    if (window.electron) {
       window.electron.openExternal("https://github.com/ayusht26/save-dlp");
+    } else {
+      window.open("https://github.com/ayusht26/save-dlp", "_blank");
+    }
   };
 
   const toggleNotifications = () => {
@@ -29,6 +60,28 @@ export default function SettingsPage({ settings, setSettings }) {
     };
     setSettings(newSettings);
     if (window.electron) window.electron.updateSettings(newSettings);
+  };
+
+  const handleCheckUpdate = () => {
+    setUpdateStatus("checking");
+    if (window.electron) {
+      window.electron.checkForUpdates();
+    } else {
+      // Fallback to prevent spinning forever if you accidentally open it in Chrome/Firefox
+      setTimeout(() => {
+        setUpdateStatus("error");
+        setErrorMsg("Updater requires the Desktop App.");
+      }, 1000);
+    }
+  };
+
+  const handleDownloadUpdate = () => {
+    setUpdateStatus("downloading");
+    if (window.electron) window.electron.downloadUpdate();
+  };
+
+  const handleInstallUpdate = () => {
+    if (window.electron) window.electron.installUpdate();
   };
 
   return (
@@ -55,6 +108,103 @@ export default function SettingsPage({ settings, setSettings }) {
               gap: "24px",
             }}
           >
+            <div className="border-b border-[var(--border)] pb-6 mb-2">
+              <h3
+                style={{
+                  color: "var(--text-primary)",
+                  marginBottom: "6px",
+                  fontSize: "15px",
+                }}
+              >
+                Software Update
+              </h3>
+              <p
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "12px",
+                  marginBottom: "12px",
+                }}
+              >
+                Current Version: {appVersion || "1.0.0"}
+              </p>
+
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-[var(--radius-sm)] border border-[var(--border)] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {updateStatus === "idle" && (
+                    <RefreshCw
+                      size={16}
+                      className="text-[var(--text-secondary)]"
+                    />
+                  )}
+                  {updateStatus === "checking" && (
+                    <RefreshCw
+                      size={16}
+                      className="text-[var(--blue)] animate-spin"
+                    />
+                  )}
+                  {updateStatus === "available" && (
+                    <Download size={16} className="text-[var(--green)]" />
+                  )}
+                  {updateStatus === "downloading" && (
+                    <RefreshCw
+                      size={16}
+                      className="text-[var(--red)] animate-spin"
+                    />
+                  )}
+                  {updateStatus === "ready" && (
+                    <CheckCircle size={16} className="text-[var(--green)]" />
+                  )}
+                  {updateStatus === "error" && (
+                    <AlertCircle size={16} className="text-[var(--red)]" />
+                  )}
+
+                  <div className="flex flex-col">
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                      {updateStatus === "idle" && "App is up to date"}
+                      {updateStatus === "checking" && "Checking for updates..."}
+                      {updateStatus === "available" && "New update available!"}
+                      {updateStatus === "downloading" &&
+                        `Downloading... ${Math.round(updateProgress)}%`}
+                      {updateStatus === "ready" && "Update ready to install"}
+                      {updateStatus === "error" && "Error checking for updates"}
+                    </span>
+                    {updateStatus === "error" && (
+                      <span className="text-[10px] text-[var(--red)]">
+                        {errorMsg}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  {(updateStatus === "idle" || updateStatus === "error") && (
+                    <button
+                      onClick={handleCheckUpdate}
+                      className="url-action-btn bg-transparent border-none"
+                    >
+                      Check
+                    </button>
+                  )}
+                  {updateStatus === "available" && (
+                    <button
+                      onClick={handleDownloadUpdate}
+                      className="fetch-btn py-1.5 px-3"
+                    >
+                      Download
+                    </button>
+                  )}
+                  {updateStatus === "ready" && (
+                    <button
+                      onClick={handleInstallUpdate}
+                      className="fetch-btn py-1.5 px-3"
+                    >
+                      Restart & Install
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div>
               <h3
                 style={{
@@ -128,7 +278,6 @@ export default function SettingsPage({ settings, setSettings }) {
 
             <div style={{ height: "1px", background: "var(--border)" }} />
 
-            {/* Fix 8: Added Desktop Notifications Toggle */}
             <div
               style={{
                 display: "flex",
@@ -280,7 +429,7 @@ export default function SettingsPage({ settings, setSettings }) {
                   marginBottom: "12px",
                 }}
               >
-                SaveDLP v1.0.0
+                SaveDLP v{appVersion || "1.0.0"}
               </p>
               <button
                 className="url-action-btn"

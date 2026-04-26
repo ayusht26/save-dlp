@@ -5,6 +5,8 @@ import DownloadPage from "./components/DownloadPage.jsx";
 import HistoryPage from "./components/HistoryPage.jsx";
 import SettingsPage from "./components/SettingsPage.jsx";
 import BackendStatus from "./components/BackendStatus.jsx";
+import { AnimatePresence, motion } from "framer-motion";
+import { PlayCircle, X } from "lucide-react";
 import "./App.css";
 
 const API = "http://127.0.0.1:8000";
@@ -12,7 +14,7 @@ const API = "http://127.0.0.1:8000";
 export default function App() {
   const [page, setPage] = useState("download");
   const [backendReady, setBackendReady] = useState(false);
-  const [backendChecking, setBackendChecking] = useState(true);
+  const [backendError, setBackendError] = useState(false);
 
   const [downloads, setDownloads] = useState([]);
   const [activeDownloads, setActiveDownloads] = useState([]);
@@ -25,28 +27,50 @@ export default function App() {
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const [autoDownloadConfig, setAutoDownloadConfig] = useState(null);
 
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (title) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, title }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
   useEffect(() => {
-    const check = async () => {
+    let attempts = 0;
+    let interval;
+
+    const checkBackend = async () => {
       try {
         const res = await fetch(`${API}/ping`, {
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(1000),
         });
-        if (res.ok) setBackendReady(true);
-      } catch {}
-      setBackendChecking(false);
+        if (res.ok) {
+          setBackendReady(true);
+          setBackendError(false);
+          clearInterval(interval);
+        }
+      } catch (e) {
+        attempts++;
+        if (attempts >= 10) {
+          setBackendError(true);
+          clearInterval(interval);
+        }
+      }
     };
-    check();
 
+    checkBackend();
+    interval = setInterval(checkBackend, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     if (window.electron) {
       window.electron.getSettings().then(setSettings);
       window.electron.getHistory().then((data) => {
         setDownloads(data || []);
         setIsHistoryLoaded(true);
-      });
-
-      window.electron.onBackendStatus((status) => {
-        if (status === "ready") setBackendReady(true);
-        setBackendChecking(false);
       });
 
       window.electron.onDownloadUrl((rawUrl) => {
@@ -86,7 +110,6 @@ export default function App() {
     (item) => setDownloads((prev) => [item, ...prev.slice(0, 49)]),
     [],
   );
-
   const updateDownload = useCallback(
     (id, updates) =>
       setDownloads((prev) =>
@@ -105,19 +128,13 @@ export default function App() {
       <div className="app-body">
         <Sidebar page={page} setPage={setPage} activeCount={activeCount} />
         <main className="app-main">
-          {backendChecking ? (
-            <BackendStatus status="checking" />
-          ) : !backendReady ? (
+          {!backendReady ? (
             <BackendStatus
-              status="error"
+              isError={backendError}
               onRetry={() => {
-                setBackendChecking(true);
-                fetch(`${API}/ping`)
-                  .then((r) => {
-                    if (r.ok) setBackendReady(true);
-                  })
-                  .catch(() => {})
-                  .finally(() => setBackendChecking(false));
+                setBackendError(false);
+                setBackendReady(false);
+                window.location.reload();
               }}
             />
           ) : (
@@ -140,6 +157,7 @@ export default function App() {
                   setActiveDownloads={setActiveDownloads}
                   autoDownloadConfig={autoDownloadConfig}
                   setAutoDownloadConfig={setAutoDownloadConfig}
+                  triggerToast={addToast}
                 />
               </div>
               <div
@@ -165,6 +183,43 @@ export default function App() {
             </>
           )}
         </main>
+      </div>
+
+      {/* Magic UI Style Animated List Toasts - No Red Line */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map((t) => (
+            <motion.div
+              key={t.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="pointer-events-auto flex items-center gap-3 bg-[var(--bg-card)] border border-[var(--border)] p-3 pr-4 rounded-2xl shadow-2xl overflow-hidden relative"
+              style={{ width: "320px" }}
+            >
+              <div className="flex-shrink-0 bg-[var(--red-dim)] p-2 rounded-full text-[var(--red)]">
+                <PlayCircle size={18} />
+              </div>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                  Download Started
+                </span>
+                <span className="text-sm font-medium text-[var(--text-primary)] truncate">
+                  {t.title}
+                </span>
+              </div>
+              <button
+                onClick={() =>
+                  setToasts((prev) => prev.filter((x) => x.id !== t.id))
+                }
+                className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--red)] transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

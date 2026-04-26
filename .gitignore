@@ -9,6 +9,8 @@ node_modules/
 backend/bin/
 backend/dist/
 
+release
+
 # Virtual Environment
 backend/venv/
 

@@ -13,9 +13,21 @@
     "build:mac": "vite build && electron-builder --mac",
     "build:linux": "vite build && electron-builder --linux"
   },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "framer-motion": "^11.18.2",
+    "lucide-react": "^0.344.0"
+  },
   "build": {
     "appId": "com.ayusht26.savedlp",
     "productName": "SaveDLP",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ayusht26",
+        "repo": "save-dlp"
+      }
+    ],
     "directories": {
       "buildResources": "app/assets",
       "output": "release"
@@ -51,31 +63,6 @@
       ],
       "icon": "app/assets/icon.ico"
     },
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "app/assets/icon.icns",
-      "category": "public.app-category.utilities"
-    },
-    "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "app/assets/icon.png",
-      "category": "Utility"
-    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -96,12 +83,15 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.5.0",
     "concurrently": "^9.1.2",
     "cross-env": "^10.1.0",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
+    "postcss": "^8.5.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.19",
     "vite": "^6.0.3",
     "wait-on": "^8.0.1"
   }
